@@ -45,15 +45,19 @@ async function runCancelTestWorkflow(connection: Connection, taskQueue: string, 
 }
 
 async function runWorkflows(connection: Connection, taskQueue: string, numWorkflows: number, concurrency: number) {
-  await withZeroesHTTPServer(async (port) => {
-    const url = `http://127.0.0.1:${port}`;
-    await range(0, numWorkflows)
-      .pipe(
-        take(numWorkflows),
-        mergeMap(() => runCancelTestWorkflow(connection, taskQueue, url), concurrency)
-      )
-      .toPromise();
-  });
+  await withZeroesHTTPServer(
+    async (port) => {
+      const url = `http://127.0.0.1:${port}`;
+      await range(0, numWorkflows)
+        .pipe(
+          take(numWorkflows),
+          mergeMap(() => runCancelTestWorkflow(connection, taskQueue, url), concurrency)
+        )
+        .toPromise();
+    },
+    100,
+    10
+  );
 }
 async function main() {
   const namespace = `bench-${uuid4()}`;
