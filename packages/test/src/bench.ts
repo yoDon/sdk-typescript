@@ -33,9 +33,12 @@ async function runCancelTestWorkflow(connection: Connection, taskQueue: string, 
   let completedWithFailure = false;
 
   try {
-    await workflow.start(url, true);
+    console.log("WF result", await workflow.start(url, false));
   } catch (err) {
     completedWithFailure = err.message === 'Activity cancelled' && err instanceof WorkflowExecutionFailedError;
+    if (!completedWithFailure) {
+      console.log("WF err", err);
+    }
   }
   console.log('Workflow complete', { completedWithFailure });
 

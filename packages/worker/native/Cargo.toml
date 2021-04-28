@@ -21,4 +21,4 @@ tokio = "1.4.0"
 # TODO: revert back to *, can't now because of this error: prerelease package needs to be specified explicitly
 # version = "*"
 version = "0.1.0-alpha.1"
-path = "./sdk-core"
+path = "../../../../sdk-core"

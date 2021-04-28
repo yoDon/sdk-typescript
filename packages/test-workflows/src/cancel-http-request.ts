@@ -6,7 +6,7 @@ import { ResolvablePromise } from './resolvable-promise';
 const fetch = Context.configure(cancellableFetch, {
   type: 'remote',
   startToCloseTimeout: '20s',
-  heartbeatTimeout: '3s',
+  heartbeatTimeout: '6s',
 });
 
 const activityStarted = new ResolvablePromise<void>();

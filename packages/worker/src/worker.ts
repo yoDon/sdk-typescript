@@ -701,7 +701,9 @@ export class Worker {
    */
   protected workflow$(): Observable<coresdk.workflow_activation.WFActivation> {
     return this.pollLoop$(async () => {
+      console.time("Core WT poll time");
       const buffer = await this.nativeWorker.pollWorkflowActivation();
+      console.timeEnd("Core WT poll time");
       const task = coresdk.workflow_activation.WFActivation.decode(new Uint8Array(buffer));
       const { taskToken, ...rest } = task;
       this.log.debug('Got workflow activation', { taskToken: formatTaskToken(taskToken), ...rest });
@@ -714,10 +716,14 @@ export class Worker {
    */
   protected activity$(): Observable<coresdk.activity_task.ActivityTask> {
     return this.pollLoop$(async () => {
+      console.log("Lang starting poll");
+      console.time("Core AT poll time");
       const buffer = await this.nativeWorker.pollActivityTask();
+      console.timeEnd("Core AT poll time");
       const task = coresdk.activity_task.ActivityTask.decode(new Uint8Array(buffer));
       const { taskToken, ...rest } = task;
       this.log.debug('Got activity task', { taskToken: formatTaskToken(taskToken), ...rest });
+      console.log("Got at!");
       return task;
     });
   }
