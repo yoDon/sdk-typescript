@@ -53,8 +53,8 @@ async function main() {
     workflowsPath: path.join(__dirname, '../../test-workflows/lib'),
     activitiesPath: path.join(__dirname, '../../test-activities/lib'),
     taskQueue,
-    maxConcurrentActivityExecutions: 100,
-    maxConcurrentWorkflowTaskExecutions: 100,
+    maxConcurrentActivityExecutions: 1000,
+    maxConcurrentWorkflowTaskExecutions: 1000,
     serverOptions: {
       namespace,
     },
@@ -64,7 +64,7 @@ async function main() {
   await Promise.all([
     worker.run(),
     (async () => {
-      await runWorkflows(connection, taskQueue, 1_00, 1_00);
+      await runWorkflows(connection, taskQueue, 1_000, 1_00);
       worker.shutdown();
     })(),
   ]);

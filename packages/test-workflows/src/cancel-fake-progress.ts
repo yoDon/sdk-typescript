@@ -5,8 +5,8 @@ import { ResolvablePromise } from './resolvable-promise';
 
 const fakeProgress = Context.configure(activities.fakeProgress, {
   type: 'remote',
-  startToCloseTimeout: '20s',
-  heartbeatTimeout: '3s',
+  startToCloseTimeout: '200s',
+  heartbeatTimeout: '30s',
 });
 
 const activityStarted = new ResolvablePromise<void>();
