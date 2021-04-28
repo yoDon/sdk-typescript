@@ -613,6 +613,7 @@ export class Worker {
               if (!close) {
                 throw new IllegalStateError('Got a Workflow activation with no jobs');
               }
+              workflow?.isolate.dispose();
               return { state: undefined, output: { close, arr: undefined } };
             }
 
