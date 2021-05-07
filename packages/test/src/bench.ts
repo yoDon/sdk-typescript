@@ -74,6 +74,7 @@ async function main() {
     '--concurrent-wf-clients': Number,
     '--log-level': String,
     '--server-address': String,
+    '--namespace': String,
   });
   const workflowName = args['--workflow'] || 'cancel-fake-progress';
   const iterations = args['--iterations'] || 1000;
@@ -82,6 +83,7 @@ async function main() {
   const concurrentWFClients = args['--concurrent-wf-clients'] || 100;
   const logLevel = (args['--log-level'] || 'INFO').toUpperCase();
   const serverAddress = args['--server-address'] || 'http://localhost:7233';
+  const namespace = args['--namespace'] || `bench-${new Date().toISOString()}`;
   const serverUrl = new URL(serverAddress);
 
   // In order for JaegerExporter to transmit packets correctly, increase net.inet.udp.maxdgram to 65536.
@@ -93,7 +95,6 @@ async function main() {
     traceExporter: jaegerExporter,
   });
   await otel.start();
-  const namespace = `bench-${new Date().toISOString()}`;
   const taskQueue = 'bench';
   const connection = new Connection({ address: serverUrl.host }, { namespace });
 
