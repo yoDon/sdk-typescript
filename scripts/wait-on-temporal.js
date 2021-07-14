@@ -11,9 +11,13 @@ class Timer {
 }
 
 async function main(maxAttempts = 100, retryIntervalSecs = 1) {
+  const args = arg({
+    '--server-address': String,
+  });
+  const serverAddress = args['--server-address'] || 'localhost:7233';
   for (let attempt = 1; attempt <= maxAttempts; ++attempt) {
     try {
-      const client = new Connection();
+      const client = new Connection({ address: serverAddress });
       // Workaround for describeNamespace returning even though namespace is not registered yet
       // See: https://github.com/temporalio/temporal/issues/1336
       await client.service.getWorkflowExecutionHistory({
