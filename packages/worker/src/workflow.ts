@@ -172,6 +172,20 @@ export class Workflow {
     if (!activation.jobs) {
       throw new Error('Expected workflow activation jobs to be defined');
     }
+
+    // Process notify change jobs first
+    // TODO: Only doing this b/c I need to prevent workflows that don't do anything else from
+    //   "completing" before they have a chance to run the notify change job. In general this
+    //   seems like a bit of a hole that would also apply to signals, as noted below.
+    activation.jobs.sort((a, b) => {
+      if (a.notifyHasPatch !== undefined) {
+        return -1;
+      } else if (b.notifyHasPatch !== undefined) {
+        return 1;
+      }
+      return 0;
+    });
+
     const arr = coresdk.workflow_activation.WFActivation.encodeDelimited(activation).finish();
     try {
       // Loop and invoke each job with entire microtasks chain.

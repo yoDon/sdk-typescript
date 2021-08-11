@@ -1,10 +1,10 @@
-import anyTest, { TestInterface, ExecutionContext } from 'ava';
+import anyTest, { ExecutionContext, TestInterface } from 'ava';
 import path from 'path';
 import Long from 'long';
 import dedent from 'dedent';
 import { coresdk } from '@temporalio/proto';
 import { ApplyMode } from '@temporalio/workflow';
-import { defaultDataConverter, ApplicationFailure, errorToFailure, msToTs, RetryState } from '@temporalio/common';
+import { ApplicationFailure, defaultDataConverter, errorToFailure, msToTs, RetryState } from '@temporalio/common';
 import { Workflow } from '@temporalio/worker/lib/workflow';
 import { WorkflowIsolateBuilder } from '@temporalio/worker/lib/isolate-builder';
 import { RoundRobinIsolateContextProvider } from '@temporalio/worker/lib/isolate-context-provider';
@@ -101,6 +101,15 @@ function makeStartWorkflow(
   };
 }
 
+function makeStartWorkflowJob(
+  script: string,
+  args?: coresdk.common.IPayload[]
+): coresdk.workflow_activation.IWFActivationJob {
+  return {
+    startWorkflow: { workflowId: 'test-workflowId', workflowType: script, arguments: args },
+  };
+}
+
 /**
  * Creates a Failure object for a cancelled activity
  */
@@ -153,6 +162,12 @@ function makeResolveActivity(
   timestamp: number = Date.now()
 ): coresdk.workflow_activation.IWFActivation {
   return makeActivation(timestamp, makeResolveActivityJob(activityId, result));
+}
+
+function makeNotifyHasPatchJob(patchId: string): coresdk.workflow_activation.IWFActivationJob {
+  return {
+    notifyHasPatch: { patchId: patchId },
+  };
 }
 
 async function makeQueryWorkflow(
@@ -242,6 +257,15 @@ function makeRespondToQueryCommand(
 ): coresdk.workflow_commands.IWorkflowCommand {
   return {
     respondToQuery,
+  };
+}
+
+function makeSetPatchMarker(myPatchId: string, deprecated: boolean): coresdk.workflow_commands.IWorkflowCommand {
+  return {
+    setPatchMarker: {
+      patchId: myPatchId,
+      deprecated: deprecated,
+    },
   };
 }
 
@@ -1544,6 +1568,121 @@ test('continue-as-new-same-workflow', async (t) => {
       ])
     );
   }
+});
+
+test('not-replay patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeFireTimer('0'));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeSetPatchMarker('my-change-id', false), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['has change'], ['has change 2']]);
+});
+
+test('replay-no-marker patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act = makeStartWorkflow(script);
+    act.isReplaying = true;
+    const req = await activate(t, act);
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const act = makeFireTimer('0');
+    act.isReplaying = true;
+    const req = await activate(t, act);
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeSetPatchMarker('my-change-id', false), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['no change'], ['no change 2']]);
+});
+
+test('replay-no-marker-then-not-replay patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act = makeStartWorkflow(script);
+    act.isReplaying = true;
+    const req = await activate(t, act);
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  // For this second activation we are no longer replaying, so in principle we could say we now
+  // do have the marker, but that would violate the guarantee that patch calls always return the
+  // same value, so we should still not have the change
+  {
+    const req = await activate(t, makeFireTimer('0'));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeSetPatchMarker('my-change-id', false), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['no change'], ['no change 2']]);
+});
+
+test('replay-with-marker patched', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const act = makeActivation(undefined, makeStartWorkflowJob(script), makeNotifyHasPatchJob('my-change-id'));
+    const req = await activate(t, act);
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([
+        makeSetPatchMarker('my-change-id', false),
+        makeStartTimerCommand({ timerId: '0', startToFireTimeout: msToTs(100) }),
+      ])
+    );
+  }
+  {
+    const req = await activate(t, makeFireTimer('0'));
+    compareCompletion(
+      t,
+      req,
+      makeSuccess([makeSetPatchMarker('my-change-id', false), makeCompleteWorkflowExecution()])
+    );
+  }
+  t.deepEqual(logs, [['has change'], ['has change 2']]);
+});
+
+test('deprecate-patch', async (t) => {
+  const { logs, script } = t.context;
+  {
+    const req = await activate(t, makeStartWorkflow(script));
+    compareCompletion(t, req, makeSuccess([makeSetPatchMarker('my-change-id', true), makeCompleteWorkflowExecution()]));
+  }
+  t.deepEqual(logs, [['has change']]);
 });
 
 test.todo('no-commands-can-be-issued-once-workflow-completes');

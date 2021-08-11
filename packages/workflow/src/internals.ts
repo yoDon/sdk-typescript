@@ -229,8 +229,11 @@ export class Activator implements ActivationHandler {
     state.random = alea(activation.randomnessSeed.toBytes());
   }
 
-  public notifyHasChange(): void {
-    throw new Error('Not implemented');
+  public notifyHasPatch(activation: coresdk.workflow_activation.INotifyHasPatch): void {
+    if (!activation.patchId) {
+      throw new TypeError('Notify has patch missing patch name');
+    }
+    state.knownPresentChanges.set(activation.patchId, true);
   }
 
   public removeFromCache(): void {
@@ -345,6 +348,11 @@ export class State {
   public require?: (filename: string) => Record<string, unknown>;
 
   public dataConverter: DataConverter = defaultDataConverter;
+
+  /**
+   * Changes we know the status of for this workflow, as in {@link patched}
+   */
+  public knownPresentChanges: Map<string, boolean> = new Map();
 }
 
 export const state = new State();
