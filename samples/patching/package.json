@@ -1,0 +1,25 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --build src/worker/tsconfig.json",
+    "build.watch": "tsc --build --watch src/worker/tsconfig.json",
+    "start": "node lib/worker"
+  },
+  "devDependencies": {
+    "@tsconfig/node14": "^1.0.0",
+    "typescript": "^4.2.2"
+  },
+  "name": "patching",
+  "dependencies": {
+    "@temporalio/client": "file:../../packages/client",
+    "@temporalio/common": "file:../../packages/common",
+    "@temporalio/proto": "file:../../packages/proto",
+    "@temporalio/worker": "file:../../packages/worker",
+    "@temporalio/workflow": "file:../../packages/workflow",
+    "long": "^4.0.0",
+    "ms": "^2.1.3",
+    "protobufjs": "^6.10.2",
+    "temporalio": "file:../../packages/meta"
+  }
+}
