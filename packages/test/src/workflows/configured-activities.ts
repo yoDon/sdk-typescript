@@ -1,7 +1,7 @@
-import { configureActivities } from '@temporalio/workflow';
+import { newActivityStub } from '@temporalio/workflow';
 import * as activityInterfaces from '../activities';
 
-const activities = configureActivities<typeof activityInterfaces>({
+const activities = newActivityStub<typeof activityInterfaces>({
   type: 'remote',
   startToCloseTimeout: '10m',
 });

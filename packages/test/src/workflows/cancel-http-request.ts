@@ -1,6 +1,6 @@
 import {
   ActivityCancellationType,
-  configureActivities,
+  newActivityStub,
   CancellationScope,
   isCancellation,
   Trigger,
@@ -8,7 +8,7 @@ import {
 import { CancellableHTTPRequest } from '../interfaces';
 import type * as activities from '../activities';
 
-const { cancellableFetch } = configureActivities<typeof activities>({
+const { cancellableFetch } = newActivityStub<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '20s',
   heartbeatTimeout: '3s',

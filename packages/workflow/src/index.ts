@@ -14,7 +14,7 @@
  *
  * ### Activities
  *
- * To schedule Activities, use {@link configureActivities} to obtain an Activity function and call.
+ * To schedule Activities, use {@link newActivityStub} to obtain an Activity function and call.
  *
  * <!--SNIPSTART nodejs-schedule-activity-workflow-->
  * <!--SNIPEND-->

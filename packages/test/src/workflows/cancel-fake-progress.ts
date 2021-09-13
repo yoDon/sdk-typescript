@@ -1,6 +1,6 @@
 import {
   ActivityCancellationType,
-  configureActivities,
+  newActivityStub,
   CancellationScope,
   isCancellation,
   Trigger,
@@ -8,7 +8,7 @@ import {
 import { ActivitySignalHandler } from '../interfaces';
 import type * as activities from '../activities';
 
-const { fakeProgress } = configureActivities<typeof activities>({
+const { fakeProgress } = newActivityStub<typeof activities>({
   type: 'remote',
   startToCloseTimeout: '200s',
   heartbeatTimeout: '2s',
