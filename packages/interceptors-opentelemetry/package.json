@@ -19,7 +19,7 @@
     "@opentelemetry/sdk-node": "^0.24.0",
     "@temporalio/client": "file:../client",
     "@temporalio/common": "file:../common",
-    "@temporalio/worker": "file:../worker",
+    "@temporalio/worker": "file:../workerr",
     "@temporalio/workflow": "file:../workflow"
   },
   "bugs": {

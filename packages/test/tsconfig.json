@@ -9,7 +9,7 @@
     { "path": "../client" },
     { "path": "../common" },
     { "path": "../interceptors-opentelemetry" },
-    { "path": "../worker" },
+    { "path": "../workerr" },
     { "path": "../workflow" }
   ],
   "include": ["./src/**/*.ts"],

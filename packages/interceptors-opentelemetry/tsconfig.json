@@ -4,7 +4,7 @@
     "outDir": "./lib",
     "rootDir": "./src"
   },
-  "references": [{ "path": "../client" }, { "path": "../common" }, { "path": "../worker" }, { "path": "../workflow" }],
+  "references": [{ "path": "../client" }, { "path": "../common" }, { "path": "../workerr" }, { "path": "../workflow" }],
   "include": ["./src/**/*.ts"],
   "exclude": ["node_modules"]
 }
