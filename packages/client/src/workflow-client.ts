@@ -1,6 +1,6 @@
 import os from 'os';
+import * as grpc from '@grpc/grpc-js';
 import { temporal } from '@temporalio/proto';
-import { WorkflowClientInterceptors } from './interceptors';
 import { v4 as uuid4 } from 'uuid';
 import {
   arrayFromPayloads,
@@ -22,6 +22,7 @@ import { WorkflowOptions, addDefaults, compileWorkflowOptions } from './workflow
 import {
   WorkflowCancelInput,
   WorkflowClientCallsInterceptor,
+  WorkflowClientInterceptors,
   WorkflowQueryInput,
   WorkflowSignalInput,
   WorkflowSignalWithStartInput,
@@ -274,7 +275,15 @@ export class WorkflowClient {
     let ev: temporal.api.history.v1.IHistoryEvent;
 
     for (;;) {
-      const res = await this.service.getWorkflowExecutionHistory(req);
+      let res: temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
+      try {
+        res = await this.service.getWorkflowExecutionHistory(req);
+      } catch (err: any) {
+        // if (err.code === grpc.status.DEADLINE_EXCEEDED) {
+        //   continue;
+        // }
+        throw new Error(`get history failed ${err}`);
+      }
       if (!res.history) {
         throw new Error('No history returned by service');
       }
@@ -366,26 +375,35 @@ export class WorkflowClient {
    * Used as the final function of the query interceptor chain
    */
   protected async _queryWorkflowHandler(input: WorkflowQueryInput): Promise<unknown> {
-    const response = await this.service.queryWorkflow({
-      queryRejectCondition: input.queryRejectCondition,
-      namespace: this.options.namespace,
-      execution: input.workflowExecution,
-      query: {
-        queryType: input.queryType,
-        queryArgs: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
-      },
-    });
-    if (response.queryRejected) {
-      if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
-        throw new TypeError('Received queryRejected from server with no status');
+    for (;;) {
+      try {
+        const response = await this.service.queryWorkflow({
+          queryRejectCondition: input.queryRejectCondition,
+          namespace: this.options.namespace,
+          execution: input.workflowExecution,
+          query: {
+            queryType: input.queryType,
+            queryArgs: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
+          },
+        });
+        if (response.queryRejected) {
+          if (response.queryRejected.status === undefined || response.queryRejected.status === null) {
+            throw new TypeError('Received queryRejected from server with no status');
+          }
+          throw new QueryRejectedError(response.queryRejected.status);
+        }
+        if (!response.queryResult) {
+          throw new TypeError('Invalid response from server');
+        }
+        // We ignore anything but the first result
+        return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
+      } catch (err: any) {
+        if (err.code === grpc.status.DEADLINE_EXCEEDED) {
+          continue;
+        }
+        throw new Error(`query failed ${err}`);
       }
-      throw new QueryRejectedError(response.queryRejected.status);
     }
-    if (!response.queryResult) {
-      throw new TypeError('Invalid response from server');
-    }
-    // We ignore anything but the first result
-    return this.options.dataConverter.fromPayloads(0, response.queryResult?.payloads);
   }
 
   /**
@@ -394,15 +412,19 @@ export class WorkflowClient {
    * Used as the final function of the signal interceptor chain
    */
   protected async _signalWorkflowHandler(input: WorkflowSignalInput): Promise<void> {
-    await this.service.signalWorkflowExecution({
-      identity: this.options.identity,
-      namespace: this.options.namespace,
-      workflowExecution: input.workflowExecution,
-      requestId: uuid4(),
-      // control is unused,
-      signalName: input.signalName,
-      input: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
-    });
+    try {
+      await this.service.signalWorkflowExecution({
+        identity: this.options.identity,
+        namespace: this.options.namespace,
+        workflowExecution: input.workflowExecution,
+        requestId: uuid4(),
+        // control is unused,
+        signalName: input.signalName,
+        input: { payloads: await this.options.dataConverter.toPayloads(...input.args) },
+      });
+    } catch (err) {
+      throw new Error(`signal failed ${err}`);
+    }
   }
 
   /**
@@ -413,34 +435,38 @@ export class WorkflowClient {
   protected async _signalWithStartWorkflowHandler(input: WorkflowSignalWithStartInput): Promise<string> {
     const { identity, dataConverter } = this.options;
     const { options, workflowName, workflowArgs, signalName, signalArgs, headers } = input;
-    const { runId } = await this.service.signalWithStartWorkflowExecution({
-      namespace: this.options.namespace,
-      identity,
-      requestId: uuid4(),
-      workflowId: options.workflowId,
-      workflowIdReusePolicy: options.workflowIdReusePolicy,
-      workflowType: { name: workflowName },
-      input: { payloads: await dataConverter.toPayloads(...workflowArgs) },
-      signalName,
-      signalInput: { payloads: await dataConverter.toPayloads(...signalArgs) },
-      taskQueue: {
-        kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
-        name: options.taskQueue,
-      },
-      workflowExecutionTimeout: options.workflowExecutionTimeout,
-      workflowRunTimeout: options.workflowRunTimeout,
-      workflowTaskTimeout: options.workflowTaskTimeout,
-      retryPolicy: options.retryPolicy,
-      memo: options.memo ? { fields: await mapToPayloads(dataConverter, options.memo) } : undefined,
-      searchAttributes: options.searchAttributes
-        ? {
-            indexedFields: await mapToPayloads(dataConverter, options.searchAttributes),
-          }
-        : undefined,
-      cronSchedule: options.cronSchedule,
-      header: { fields: headers },
-    });
-    return runId;
+    try {
+      const { runId } = await this.service.signalWithStartWorkflowExecution({
+        namespace: this.options.namespace,
+        identity,
+        requestId: uuid4(),
+        workflowId: options.workflowId,
+        workflowIdReusePolicy: options.workflowIdReusePolicy,
+        workflowType: { name: workflowName },
+        input: { payloads: await dataConverter.toPayloads(...workflowArgs) },
+        signalName,
+        signalInput: { payloads: await dataConverter.toPayloads(...signalArgs) },
+        taskQueue: {
+          kind: temporal.api.enums.v1.TaskQueueKind.TASK_QUEUE_KIND_UNSPECIFIED,
+          name: options.taskQueue,
+        },
+        workflowExecutionTimeout: options.workflowExecutionTimeout,
+        workflowRunTimeout: options.workflowRunTimeout,
+        workflowTaskTimeout: options.workflowTaskTimeout,
+        retryPolicy: options.retryPolicy,
+        memo: options.memo ? { fields: await mapToPayloads(dataConverter, options.memo) } : undefined,
+        searchAttributes: options.searchAttributes
+          ? {
+              indexedFields: await mapToPayloads(dataConverter, options.searchAttributes),
+            }
+          : undefined,
+        cronSchedule: options.cronSchedule,
+        header: { fields: headers },
+      });
+      return runId;
+    } catch (err) {
+      throw new Error(`signalWithStart failed ${err}`);
+    }
   }
 
   /**
@@ -476,8 +502,12 @@ export class WorkflowClient {
       cronSchedule: opts.cronSchedule,
       header: { fields: headers },
     };
-    const res = await this.service.startWorkflowExecution(req);
-    return res.runId;
+    try {
+      const res = await this.service.startWorkflowExecution(req);
+      return res.runId;
+    } catch (err) {
+      throw new Error(`start failed ${err}`);
+    }
   }
 
   /**
@@ -488,12 +518,16 @@ export class WorkflowClient {
   protected async _terminateWorkflowHandler(
     input: WorkflowTerminateInput
   ): Promise<TerminateWorkflowExecutionResponse> {
-    return await this.service.terminateWorkflowExecution({
-      namespace: this.options.namespace,
-      identity: this.options.identity,
-      ...input,
-      details: { payloads: await this.options.dataConverter.toPayloads(input.details) },
-    });
+    try {
+      return await this.service.terminateWorkflowExecution({
+        namespace: this.options.namespace,
+        identity: this.options.identity,
+        ...input,
+        details: { payloads: await this.options.dataConverter.toPayloads(input.details) },
+      });
+    } catch (err) {
+      throw new Error(`terminate failed ${err}`);
+    }
   }
 
   /**
@@ -502,12 +536,16 @@ export class WorkflowClient {
    * Used as the final function of the cancel interceptor chain
    */
   protected async _cancelWorkflowHandler(input: WorkflowCancelInput): Promise<RequestCancelWorkflowExecutionResponse> {
-    return await this.service.requestCancelWorkflowExecution({
-      namespace: this.options.namespace,
-      identity: this.options.identity,
-      requestId: uuid4(),
-      workflowExecution: input.workflowExecution,
-    });
+    try {
+      return await this.service.requestCancelWorkflowExecution({
+        namespace: this.options.namespace,
+        identity: this.options.identity,
+        requestId: uuid4(),
+        workflowExecution: input.workflowExecution,
+      });
+    } catch (err) {
+      throw new Error(`cancel failed ${err}`);
+    }
   }
 
   /**
