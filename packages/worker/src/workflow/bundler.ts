@@ -28,39 +28,39 @@ export class WorkflowCodeBundler {
    * @return a string representation of the bundled Workflow code
    */
   public async createBundle(): Promise<string> {
-    const vol = new memfs.Volume();
-    const ufs = new unionfs.Union();
+    // const vol = new memfs.Volume();
+    // const ufs = new unionfs.Union();
 
     /**
      * readdir and exclude sourcemaps and d.ts files
      */
-    function readdir(...args: Parameters<typeof realFS.readdir>) {
-      // Help TS a bit because readdir has multiple signatures
-      const callback: (err: NodeJS.ErrnoException | null, files: string[]) => void = args.pop() as any;
-      const newArgs: Parameters<typeof realFS.readdir> = [
-        ...args,
-        (err: Error | null, files: string[]) => {
-          if (err !== null) {
-            callback(err, []);
-            return;
-          }
-          callback(
-            null,
-            files.filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
-          );
-        },
-      ] as any;
-      return realFS.readdir(...newArgs);
-    }
+    // function readdir(...args: Parameters<typeof realFS.readdir>) {
+    //   // Help TS a bit because readdir has multiple signatures
+    //   const callback: (err: NodeJS.ErrnoException | null, files: string[]) => void = args.pop() as any;
+    //   const newArgs: Parameters<typeof realFS.readdir> = [
+    //     ...args,
+    //     (err: Error | null, files: string[]) => {
+    //       if (err !== null) {
+    //         callback(err, []);
+    //         return;
+    //       }
+    //       callback(
+    //         null,
+    //         files.filter((f) => /\.[jt]s$/.test(path.extname(f)) && !f.endsWith('.d.ts'))
+    //       );
+    //     },
+    //   ] as any;
+    //   return realFS.readdir(...newArgs);
+    // }
 
     // Cast because the type definitions are inaccurate
-    ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
-    const distDir = '/dist';
-    const entrypointPath = path.join('/src/main.js');
+    // ufs.use(memfs.createFsFromVolume(vol) as any).use({ ...realFS, readdir: readdir as any });
+    const distDir = '/tmp/dist';
+    const entrypointPath = '/tmp/main.js';
 
-    this.genEntrypoint(vol, entrypointPath);
-    await this.bundle(ufs, entrypointPath, distDir);
-    return ufs.readFileSync(path.join(distDir, 'main.js'), 'utf8');
+    this.genEntrypoint(realFS, entrypointPath);
+    await this.bundle(realFS, entrypointPath, distDir);
+    return realFS.readFileSync(path.join(distDir, 'main.js'), 'utf8');
   }
 
   /**
@@ -68,7 +68,7 @@ export class WorkflowCodeBundler {
    *
    * Exports all detected Workflow implementations and some workflow libraries to be used by the Worker.
    */
-  protected genEntrypoint(vol: typeof memfs.vol, target: string): void {
+  protected genEntrypoint(vol: typeof realFS, target: string): void {
     const interceptorCases = [...new Set(this.workflowInterceptorModules)]
       .map(
         (v) => dedent`
@@ -116,7 +116,7 @@ export class WorkflowCodeBundler {
   /**
    * Run webpack
    */
-  protected async bundle(filesystem: typeof unionfs.ufs, entry: string, distDir: string): Promise<void> {
+  protected async bundle(filesystem: typeof realFS, entry: string, distDir: string): Promise<void> {
     const compiler = webpack({
       resolve: {
         modules: this.nodeModulesPaths,
