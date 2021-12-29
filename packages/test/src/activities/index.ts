@@ -63,7 +63,7 @@ export async function waitForCancellation(): Promise<void> {
   await Context.current().cancelled;
 }
 
-async function signalSchedulingWorkflow(signalName: string) {
+export async function signalSchedulingWorkflow(signalName: string) {
   const { info } = Context.current();
   const connection = getTestConnection();
   await connection.service.signalWorkflowExecution({

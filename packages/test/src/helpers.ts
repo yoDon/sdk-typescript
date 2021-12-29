@@ -1,3 +1,5 @@
+import { Core, DefaultLogger } from '@temporalio/worker';
+
 export function u8(s: string): Uint8Array {
   // TextEncoder requires lib "dom"
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -19,4 +21,8 @@ export async function sleep(ms: number): Promise<void> {
 
 export function cleanStackTrace(stackTrace: string | undefined | null): string | undefined {
   return stackTrace?.replace(/ \([^)]+\)|-isolate:\d+:\d+/g, '');
+}
+
+export async function installDebugCore() {
+  await Core.install({ logger: new DefaultLogger('DEBUG') });
 }
