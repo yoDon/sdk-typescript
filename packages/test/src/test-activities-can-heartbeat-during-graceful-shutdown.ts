@@ -11,7 +11,6 @@ import { signalSchedulingWorkflow } from './activities';
 import { fakeProgress } from './activities/fake-progress';
 
 if (RUN_INTEGRATION_TESTS) {
-  // This is broken at the moment
   test('Core accepts heartbeats after shutdown has been requested', async (t) => {
     await installDebugCore();
     const taskQueue = 'activity-heartbeat-after-shutdown';
