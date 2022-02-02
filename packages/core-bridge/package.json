@@ -7,6 +7,7 @@
   "scripts": {
     "build-rust": "node ./scripts/build.js --force",
     "build": "npm run build-rust",
+    "build-rust-release": "npm run build-rust -- --release",
     "install": "node ./scripts/build.js"
   },
   "keywords": [
@@ -35,6 +36,8 @@
     "sdk-core",
     "Cargo.toml",
     "Cargo.lock",
+    "index.js",
+    "common.js",
     "index.d.ts"
   ],
   "publishConfig": {

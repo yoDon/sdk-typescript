@@ -11,7 +11,6 @@ import {
   arrayFromPayloadsSync,
   Workflow,
   WorkflowQueryType,
-  ApplicationFailure,
   TemporalFailure,
 } from '@temporalio/common';
 import { checkExtends } from '@temporalio/common/lib/type-helpers';
@@ -49,12 +48,12 @@ export interface Condition {
   resolve(): void;
 }
 
-export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWFActivationJob> = (
-  activation: NonNullable<coresdk.workflow_activation.IWFActivationJob[K]>
+export type ActivationHandlerFunction<K extends keyof coresdk.workflow_activation.IWorkflowActivationJob> = (
+  activation: NonNullable<coresdk.workflow_activation.IWorkflowActivationJob[K]>
 ) => Promise<void> | void;
 
 export type ActivationHandler = {
-  [P in keyof coresdk.workflow_activation.IWFActivationJob]: ActivationHandlerFunction<P>;
+  [P in keyof coresdk.workflow_activation.IWorkflowActivationJob]: ActivationHandlerFunction<P>;
 };
 
 export class Activator implements ActivationHandler {

@@ -8,13 +8,43 @@ import { Workflow, WorkflowCreator, WorkflowCreateOptions } from './interface';
 import { SinkCall } from '@temporalio/workflow/lib/sinks';
 import { AsyncLocalStorage } from 'async_hooks';
 
+// Best effort to catch unhandled rejections from workflow code.
+// We crash the thread if we cannot find the culprit.
+export function setUnhandledRejectionHandler(): void {
+  process.on('unhandledRejection', (err, promise) => {
+    // Get the runId associated with the vm context.
+    // See for reference https://github.com/patriksimek/vm2/issues/32
+    const ctor = promise.constructor.constructor;
+    const runId = ctor('return globalThis.__TEMPORAL__?.runId')();
+    if (runId !== undefined) {
+      const workflow = VMWorkflowCreator.workflowByRunId.get(runId);
+      if (workflow !== undefined) {
+        workflow.setUnhandledRejection(err);
+        return;
+      }
+    }
+    // The user's logger is not accessible in this thread,
+    // dump the error information to stderr and abort.
+    console.error('Unhandled rejection', { runId }, err);
+    process.exit(1);
+  });
+}
+
 /**
  * A WorkflowCreator that creates VMWorkflows in the current isolate
  */
 export class VMWorkflowCreator implements WorkflowCreator {
+  private static unhandledRejectionHandlerHasBeenSet = false;
+  static workflowByRunId = new Map<string, VMWorkflow>();
+
   script?: vm.Script;
 
   constructor(script: vm.Script, public readonly isolateExecutionTimeoutMs: number) {
+    if (!VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet) {
+      setUnhandledRejectionHandler();
+      VMWorkflowCreator.unhandledRejectionHandlerHasBeenSet = true;
+    }
+
     this.script = script;
   }
 
@@ -42,7 +72,9 @@ export class VMWorkflowCreator implements WorkflowCreator {
 
     await workflowModule.initRuntime(options);
 
-    return new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
+    const newVM = new VMWorkflow(options.info, context, workflowModule, isolateExecutionTimeoutMs);
+    VMWorkflowCreator.workflowByRunId.set(options.info.runId, newVM);
+    return newVM;
   }
 
   protected async getContext(): Promise<vm.Context> {
@@ -114,25 +146,12 @@ export class VMWorkflow implements Workflow {
   }
 
   /**
-   * Inject a function into the isolate context global scope
-   *
-   * @param path name of global variable to inject the function as (e.g. `console.log`)
-   * @param fn function to inject into the isolate
-   */
-  public async injectGlobal(key: string, val: unknown): Promise<void> {
-    if (this.context === undefined) {
-      throw new IllegalStateError('Workflow isolate context uninitialized');
-    }
-    this.context[key] = val;
-  }
-
-  /**
    * Send request to the Workflow runtime's worker-interface
    *
    * The Workflow is activated in batches to ensure correct order of activation
    * job application.
    */
-  public async activate(activation: coresdk.workflow_activation.IWFActivation): Promise<Uint8Array> {
+  public async activate(activation: coresdk.workflow_activation.IWorkflowActivation): Promise<Uint8Array> {
     if (this.context === undefined) {
       throw new IllegalStateError('Workflow isolate context uninitialized');
     }
@@ -158,7 +177,7 @@ export class VMWorkflow implements Workflow {
         continue;
       }
       const { numBlockedConditions } = await this.workflowModule.activate(
-        coresdk.workflow_activation.WFActivation.fromObject({ ...activation, jobs }),
+        coresdk.workflow_activation.WorkflowActivation.fromObject({ ...activation, jobs }),
         batchIndex++
       );
       if (numBlockedConditions > 0) {
@@ -172,12 +191,12 @@ export class VMWorkflow implements Workflow {
     // Apparently nextTick does not get it triggered so we use setTimeout here.
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (this.unhandledRejection) {
-      return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited({
+      return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited({
         runId: activation.runId,
         failed: { failure: await errorToFailure(this.unhandledRejection, defaultDataConverter) },
       }).finish();
     }
-    return coresdk.workflow_completion.WFActivationCompletion.encodeDelimited(completion).finish();
+    return coresdk.workflow_completion.WorkflowActivationCompletion.encodeDelimited(completion).finish();
   }
 
   /**
@@ -207,6 +226,7 @@ export class VMWorkflow implements Workflow {
    * Do not use this Workflow instance after this method has been called.
    */
   public async dispose(): Promise<void> {
+    VMWorkflowCreator.workflowByRunId.delete(this.info.runId);
     await this.workflowModule.dispose();
     delete this.context;
   }

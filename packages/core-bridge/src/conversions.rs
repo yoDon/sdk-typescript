@@ -6,11 +6,11 @@ use neon::{
     types::{JsNumber, JsString},
 };
 use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
-use std::net::SocketAddr;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{fmt::Display, net::SocketAddr, str::FromStr, time::Duration};
 use temporal_sdk_core::{
+    api::worker::{WorkerConfig, WorkerConfigBuilder},
     ClientTlsConfig, RetryConfig, ServerGatewayOptions, ServerGatewayOptionsBuilder,
-    TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url, WorkerConfig,
+    TelemetryOptions, TelemetryOptionsBuilder, TlsConfig, Url,
 };
 
 macro_rules! js_value_getter {
@@ -193,15 +193,13 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
                     "maxInterval",
                     JsNumber
                 ) as u64),
-                max_elapsed_time: match js_optional_getter!(
+                max_elapsed_time: js_optional_getter!(
                     cx,
                     &retry_config,
                     "maxElapsedTime",
                     JsNumber
-                ) {
-                    None => None,
-                    Some(val) => Some(Duration::from_millis(val.value(cx) as u64)),
-                },
+                )
+                .map(|val| Duration::from_millis(val.value(cx) as u64)),
                 max_retries: js_value_getter!(cx, retry_config, "maxRetries", JsNumber) as usize,
             },
         };
@@ -291,18 +289,23 @@ impl ObjectHandleConversionsExt for Handle<'_, JsObject> {
             JsNumber
         ) as u64);
 
-        Ok(WorkerConfig {
-            no_remote_activities: false, // TODO: make this configurable once Core implements local activities
-            max_concurrent_at_polls,
-            max_concurrent_wft_polls,
-            max_outstanding_workflow_tasks,
-            max_outstanding_activities,
-            max_cached_workflows,
-            nonsticky_to_sticky_poll_ratio,
-            sticky_queue_schedule_to_start_timeout,
-            task_queue,
-            max_heartbeat_throttle_interval,
-            default_heartbeat_throttle_interval,
-        })
+        match WorkerConfigBuilder::default()
+            .no_remote_activities(false) // TODO: make this configurable once Core implements local activities
+            .max_concurrent_at_polls(max_concurrent_at_polls)
+            .max_concurrent_wft_polls(max_concurrent_wft_polls)
+            .max_outstanding_workflow_tasks(max_outstanding_workflow_tasks)
+            .max_outstanding_activities(max_outstanding_activities)
+            .max_cached_workflows(max_cached_workflows)
+            .nonsticky_to_sticky_poll_ratio(nonsticky_to_sticky_poll_ratio)
+            .sticky_queue_schedule_to_start_timeout(sticky_queue_schedule_to_start_timeout)
+            .task_queue(task_queue)
+            .max_heartbeat_throttle_interval(max_heartbeat_throttle_interval)
+            .default_heartbeat_throttle_interval(default_heartbeat_throttle_interval)
+            .max_outstanding_local_activities(10_usize) // TODO: Pass in
+            .build()
+        {
+            Ok(worker_cfg) => Ok(worker_cfg),
+            Err(e) => cx.throw_error(format!("Invalid worker config: {:?}", e)),
+        }
     }
 }
