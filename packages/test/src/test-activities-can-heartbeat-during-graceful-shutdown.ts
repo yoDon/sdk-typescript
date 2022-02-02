@@ -12,7 +12,7 @@ import { fakeProgress } from './activities/fake-progress';
 
 if (RUN_INTEGRATION_TESTS) {
   // This is broken at the moment
-  test.skip('Core accepts heartbeats after shutdown has been requested', async (t) => {
+  test('Core accepts heartbeats after shutdown has been requested', async (t) => {
     await installDebugCore();
     const taskQueue = 'activity-heartbeat-after-shutdown';
     const worker = await Worker.create({
