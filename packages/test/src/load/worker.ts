@@ -21,15 +21,18 @@ async function main() {
   const taskQueue = getRequired(args, '--task-queue');
 
   let exporter = undefined;
-  let telemetryOptions: TelemetryOptions | undefined = undefined;
+  let telemetryOptions: TelemetryOptions = {
+    tracingFilter: 'temporal_sdk_core=DEBUG',
+    logForwardingLevel: 'DEBUG',
+  };
   let otel;
   if (oTelUrl) {
     exporter = new OTLPTraceExporter({ url: oTelUrl });
-    telemetryOptions = {
-      oTelCollectorUrl: oTelUrl,
-      tracingFilter: 'temporal_sdk_core=DEBUG',
-      logForwardingLevel: 'DEBUG',
-    };
+    // telemetryOptions = {
+    //   oTelCollectorUrl: oTelUrl,
+    //   tracingFilter: 'temporal_sdk_core=DEBUG',
+    //   logForwardingLevel: 'DEBUG',
+    // };
     otel = new opentelemetry.NodeSDK({
       resource: new opentelemetry.resources.Resource({
         [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',

@@ -4,12 +4,24 @@ import pidusage from 'pidusage';
 import { v4 as uuid4 } from 'uuid';
 import { interval, range, Observable, OperatorFunction, ReplaySubject, pipe, lastValueFrom } from 'rxjs';
 import { bufferTime, map, mergeMap, tap, takeUntil } from 'rxjs/operators';
-import { Connection, WorkflowClient } from '@temporalio/client';
+import { Connection, ServiceError, WorkflowClient, isServerErrorResponse } from '@temporalio/client';
 import { toMB } from '@temporalio/worker/lib/utils';
 import { StarterArgSpec, starterArgSpec, getRequired } from './args';
 
 async function runWorkflow(client: WorkflowClient, name: string, taskQueue: string) {
-  await client.execute(name, { args: [], taskQueue, workflowId: uuid4() });
+  const handle = await client.start(name, { args: [], taskQueue, workflowId: uuid4() });
+  (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    try {
+      await handle.query('not-found');
+    } catch (err) {
+      // // Invalid argument
+      // if (!(err instanceof ServiceError && isServerErrorResponse(err.cause) && err.cause.code === 3)) {
+      //   throw err;
+      // }
+    }
+  })();
+  await handle.result();
 }
 
 class NumberOfWorkflows {

@@ -1,5 +1,6 @@
 import path from 'path';
 import arg from 'arg';
+import fs from 'fs';
 import { waitOnChild, shell, kill } from '@temporalio/testing/lib/child-process';
 import { setupArgSpec, starterArgSpec, workerArgSpec } from './args';
 import { spawn } from 'child_process';
@@ -29,7 +30,14 @@ async function main() {
   await waitOnChild(setup);
 
   const workerArgs = argsToForward(workerArgSpec, args);
-  const worker = spawn('node', [path.resolve(__dirname, 'worker.js'), ...workerArgs], { shell, stdio: 'inherit' });
+  var logStream = fs.createWriteStream('/tmp/worker.log', { flags: 'a' });
+
+  const worker = spawn('node', [path.resolve(__dirname, 'worker.js'), ...workerArgs], {
+    shell,
+    stdio: ['inherit', 'pipe', 'pipe'],
+  });
+  worker.stdout.pipe(logStream);
+  worker.stderr.pipe(logStream);
   process.once('SIGINT', () => kill(worker, 'SIGINT').catch(() => /* ignore */ undefined));
 
   try {
