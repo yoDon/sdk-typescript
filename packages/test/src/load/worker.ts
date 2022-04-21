@@ -23,16 +23,12 @@ async function main() {
   let exporter = undefined;
   let telemetryOptions: TelemetryOptions = {
     tracingFilter: 'temporal_sdk_core=DEBUG',
-    logForwardingLevel: 'DEBUG',
+    logForwardingLevel: 'OFF',
   };
   let otel;
   if (oTelUrl) {
     exporter = new OTLPTraceExporter({ url: oTelUrl });
-    // telemetryOptions = {
-    //   oTelCollectorUrl: oTelUrl,
-    //   tracingFilter: 'temporal_sdk_core=DEBUG',
-    //   logForwardingLevel: 'DEBUG',
-    // };
+    telemetryOptions.oTelCollectorUrl = oTelUrl;
     otel = new opentelemetry.NodeSDK({
       resource: new opentelemetry.resources.Resource({
         [SemanticResourceAttributes.SERVICE_NAME]: 'load-worker',
