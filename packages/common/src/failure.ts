@@ -225,9 +225,9 @@ const CUTOFF_STACK_PATTERNS = [
   /** Activity execution */
   /\s+at Activity\.execute \(.*[\\/]worker[\\/](?:src|lib)[\\/]activity\.[jt]s:\d+:\d+\)/,
   /** Workflow activation */
-  /\s+at Activator\.\S+NextHandler \(webpack-internal:\/\/\/.*\/internals\.[jt]s:\d+:\d+\)/,
+  /\s+at Activator\.\S+NextHandler \(.*[\\/]workflow[\\/](?:src|lib)[\\/]internals\.[jt]s:\d+:\d+\)/,
   /** Workflow run anything in context */
-  /\s+at Script\.runInContext/,
+  /\s+at Script\.runInContext \((?:node:vm|vm\.js):\d+:\d+\)/,
 ];
 
 /**
@@ -366,7 +366,8 @@ export function ensureTemporalFailure(err: unknown): TemporalFailure {
   if (err instanceof TemporalFailure) {
     return err;
   } else if (err instanceof Error) {
-    const failure = new ApplicationFailure(err.message, err.name, false);
+    const name = err.constructor?.name ?? err.name;
+    const failure = new ApplicationFailure(err.message, name, false);
     failure.stack = err.stack;
     return failure;
   } else {

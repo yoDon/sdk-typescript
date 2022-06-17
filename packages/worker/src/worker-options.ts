@@ -2,19 +2,26 @@ import { DataConverter, LoadedDataConverter } from '@temporalio/common';
 import { loadDataConverter } from '@temporalio/internal-non-workflow-common';
 import { ActivityInterface, msToNumber } from '@temporalio/internal-workflow-common';
 import os from 'os';
+import { NativeConnection } from './connection';
 import { WorkerInterceptors } from './interceptors';
 import { InjectedSinks } from './sinks';
 import { GiB } from './utils';
-import { NativeConnection } from './connection';
+import { WorkflowBundleWithSourceMap } from './workflow/bundler';
 
-export type WorkflowBundle = { code: string } | { path: string };
+export interface WorkflowBundlePathWithSourceMap {
+  codePath: string;
+  sourceMapPath: string;
+}
+export type WorkflowBundleOption = WorkflowBundleWithSourceMap | WorkflowBundlePathWithSourceMap;
 
-export function isCodeBundleOption(bundleOpt: WorkflowBundle): bundleOpt is { code: string } {
-  return typeof (bundleOpt as any).code === 'string';
+export function isCodeBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundleWithSourceMap {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.code === 'string' && typeof opt.sourceMap === 'string';
 }
 
-export function isPathBundleOption(bundleOpt: WorkflowBundle): bundleOpt is { path: string } {
-  return typeof (bundleOpt as any).path === 'string';
+export function isPathBundleOption(bundleOpt: WorkflowBundleOption): bundleOpt is WorkflowBundlePathWithSourceMap {
+  const opt = bundleOpt as any; // Cast to access properties without TS complaining
+  return typeof opt.codePath === 'string' && opt.sourceMapPath;
 }
 
 /**
@@ -27,6 +34,21 @@ export interface WorkerOptions {
    * If not provided, the worker will default to connect insecurely to `localhost:7233`.
    */
   connection?: NativeConnection;
+
+  /**
+   * A human-readable string that can identify your worker
+   * @default `${process.pid}@${os.hostname()}`
+   */
+  identity?: string;
+
+  /**
+   * A string that should be unique to the exact worker code/binary being executed.
+   *
+   * This is used to populate the `binaryChecksum` attribute in history events originated from this Worker.
+   *
+   * @default `@temporalio/worker` package name and version + checksum of workflow bundle's code
+   */
+  buildId?: string;
 
   /**
    * The namespace this worker will connect to
@@ -65,7 +87,7 @@ export interface WorkerOptions {
    *
    * See https://docs.temporal.io/typescript/production-deploy#pre-build-code for more information.
    */
-  workflowBundle?: WorkflowBundle;
+  workflowBundle?: WorkflowBundleOption;
 
   /**
    * Time to wait for pending tasks to drain after shutdown was requested.
@@ -147,8 +169,6 @@ export interface WorkerOptions {
    * You should be able to fit about 500 Workflows per GB of memory dependening on your Workflow bundle size.
    * For the SDK test Workflows, we managed to fit 750 Workflows per GB.
    *
-   * This number is impacted by the the Worker's {@link maxIsolateMemoryMB} option.
-   *
    * @default `max(os.totalmem() / 1GiB - 1, 1) * 200`
    */
   maxCachedWorkflows?: number;
@@ -220,6 +240,7 @@ export type WorkerOptionsWithDefaults = WorkerOptions &
     Pick<
       WorkerOptions,
       | 'namespace'
+      | 'identity'
       | 'shutdownGraceTime'
       | 'maxConcurrentActivityTaskExecutions'
       | 'maxConcurrentLocalActivityExecutions'
@@ -299,6 +320,7 @@ export function addDefaultWorkerOptions(options: WorkerOptions): WorkerOptionsWi
   const { maxCachedWorkflows, debugMode, ...rest } = options;
   return {
     namespace: 'default',
+    identity: `${process.pid}@${os.hostname()}`,
     shutdownGraceTime: '5s',
     maxConcurrentActivityTaskExecutions: 100,
     maxConcurrentLocalActivityExecutions: 100,

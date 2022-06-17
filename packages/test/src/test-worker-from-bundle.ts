@@ -31,45 +31,29 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await client.execute(successString, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
     t.pass();
   });
 
   test('Worker can be created from bundle path', async (t) => {
     const taskQueue = `${t.title}-${uuid4()}`;
-    const { code } = await bundleWorkflowCode({
+    const { code, sourceMap } = await bundleWorkflowCode({
       workflowsPath: require.resolve('./workflows'),
     });
-    const path = pathJoin(os.tmpdir(), `workflow-bundle-${uuid4()}`);
-    await writeFile(path, code);
-    const workflowBundle = { path };
+    const uid = uuid4();
+    const codePath = pathJoin(os.tmpdir(), `workflow-bundle-${uid}.js`);
+    const sourceMapPath = pathJoin(os.tmpdir(), `workflow-bundle-${uid}.map.js`);
+    await Promise.all([writeFile(codePath, code), writeFile(sourceMapPath, sourceMap)]);
+    const workflowBundle = { codePath, sourceMapPath };
     const worker = await Worker.create({
       taskQueue,
       workflowBundle,
     });
     const client = new WorkflowClient();
     try {
-      await Promise.all([
-        worker.run(),
-        (async () => {
-          try {
-            await client.execute(successString, { taskQueue, workflowId: uuid4() });
-          } finally {
-            worker.shutdown();
-          }
-        })(),
-      ]);
+      await worker.runUntil(client.execute(successString, { taskQueue, workflowId: uuid4() }));
     } finally {
-      await unlink(path);
+      await unlink(codePath);
     }
     t.pass();
   });
@@ -85,16 +69,7 @@ if (RUN_INTEGRATION_TESTS) {
       workflowBundle,
     });
     const client = new WorkflowClient();
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await client.execute(issue516, { taskQueue, workflowId: uuid4() });
-        } finally {
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(client.execute(issue516, { taskQueue, workflowId: uuid4() }));
     t.pass();
   });
 

@@ -176,13 +176,13 @@ if (RUN_INTEGRATION_TESTS) {
       markErrorThrown = resolve;
     });
     const logger = new DefaultLogger('ERROR', (entry) => {
-      if (entry.meta?.error.stack.startsWith('ValueError: Unknown encoding: json/protobuf')) {
+      if (entry.meta?.error.message === 'Unknown encoding: json/protobuf') {
         markErrorThrown();
       }
     });
     Runtime.install({ logger });
 
-    const taskQueue = 'test-data-converter';
+    const taskQueue = `${__filename}/${t.title}`;
     const worker = await Worker.create({
       ...defaultOptions,
       workflowsPath: require.resolve('./workflows/protobufs'),
@@ -198,17 +198,13 @@ if (RUN_INTEGRATION_TESTS) {
       taskQueue,
     });
 
-    await Promise.all([
-      worker.run(),
-      (async () => {
-        try {
-          await expectedErrorWasThrown;
-        } finally {
-          await handle.terminate();
-          worker.shutdown();
-        }
-      })(),
-    ]);
+    await worker.runUntil(async () => {
+      try {
+        await expectedErrorWasThrown;
+      } finally {
+        await handle.terminate();
+      }
+    });
     t.pass();
   });
 }
