@@ -66,10 +66,12 @@ module.exports = patchProtobufRoot(unpatchedRoot);
 // pbjs -t static-module *.proto | pbts -o root.d.ts -
 
 // src/payload-converter.ts
-import { DefaultPayloadConverterWithProtobufs } from '@temporalio/common/lib/protobufs';
+import { DefaultPayloadConverter } from '@temporalio/common/lib/protobufs';
 import root from '../protos/root';
 
-export const payloadConverter = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
+// creating your own payloadConverter and providing `protobufRoot` is optional: the default Payload Converter will work 
+// in most cases
+export const payloadConverter = new DefaultPayloadConverter({ protobufRoot: root });
 
 // src/worker.ts
 const worker = Worker.create({ dataConverter: { payloadConverterPath: require.resolve('./payload-converter') }, ... });

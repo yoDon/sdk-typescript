@@ -8,13 +8,8 @@ import {
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
-import { JsonPayloadConverter } from './json-payload-converter';
-import {
-  BinaryPayloadConverter,
-  CompositePayloadConverter,
-  PayloadConverterWithEncoding,
-  UndefinedPayloadConverter,
-} from './payload-converters';
+// import protobufjs from 'protobufjs/light';
+import { PayloadConverterWithEncoding } from './payload-converters';
 import {
   EncodingType,
   encodingTypes,
@@ -24,6 +19,8 @@ import {
   str,
   u8,
 } from './types';
+
+const protobufjs = { roots: {} };
 
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
@@ -50,22 +47,49 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
     if (!content.metadata || !(METADATA_MESSAGE_TYPE_KEY in content.metadata)) {
       throw new ValueError(`Got protobuf payload without metadata.${METADATA_MESSAGE_TYPE_KEY}`);
     }
-    if (!this.root) {
-      throw new PayloadConverterError('Unable to deserialize protobuf message without `root` being provided');
-    }
 
     const messageTypeName = str(content.metadata[METADATA_MESSAGE_TYPE_KEY]);
     let messageType;
-    try {
-      messageType = this.root.lookupType(messageTypeName);
-    } catch (e) {
-      if (errorMessage(e)?.includes('no such type')) {
+    if (this.root) {
+      try {
+        messageType = this.root.lookupType(messageTypeName);
+      } catch (e) {
+        if (errorMessage(e)?.includes('no such type')) {
+          throw new PayloadConverterError(
+            `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
+          );
+        }
+
+        throw e;
+      }
+    } else {
+      const roots = protobufjs.roots && Object.entries(protobufjs.roots);
+      if (!roots || !roots.length) {
+        console.log('AAAAAA', protobufjs.roots);
         throw new PayloadConverterError(
-          `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in \`root\``
+          `Got a \`${messageTypeName}\` protobuf message but cannot find any ProtobufJS message roots. Make sure to follow the protobuf docs and import \`root.js\` in your Workflow and Activity code. https://docs.temporal.io/typescript/data-converters#protobufs`
         );
       }
 
-      throw e;
+      // for (const [_name, root] of roots) {
+      //   try {
+      //     messageType = root.lookupType(messageTypeName);
+      //   } catch (err) {
+      //     const message = errorMessage(err);
+      //     if (!message || !/no such type/.test(message)) {
+      //       throw err;
+      //     }
+      //   }
+
+      //   if (messageType) {
+      //     break;
+      //   }
+      // }
+      if (!messageType) {
+        throw new PayloadConverterError(
+          `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in ProtobufJS message roots. Make sure that \`${messageTypeName}\` is included in the \`.proto\` files used to generate \`json-module.js\` and \`root.d.ts\`. https://docs.temporal.io/typescript/data-converters#protobufs`
+        );
+      }
     }
 
     return { messageType, data: content.data };
@@ -170,27 +194,4 @@ function getNamespacedTypeName(node: Type | Namespace): string {
 
 function isRoot(root: unknown): root is Root {
   return isRecord(root) && root.constructor.name === 'Root';
-}
-
-export interface DefaultPayloadConverterWithProtobufsOptions {
-  /**
-   * The `root` provided to {@link ProtobufJsonPayloadConverter} and {@link ProtobufBinaryPayloadConverter}
-   */
-  protobufRoot: Record<string, unknown>;
-}
-
-export class DefaultPayloadConverterWithProtobufs extends CompositePayloadConverter {
-  // Match the order used in other SDKs.
-  //
-  // Go SDK:
-  // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-  constructor({ protobufRoot }: DefaultPayloadConverterWithProtobufsOptions) {
-    super(
-      new UndefinedPayloadConverter(),
-      new BinaryPayloadConverter(),
-      new ProtobufJsonPayloadConverter(protobufRoot),
-      new ProtobufBinaryPayloadConverter(protobufRoot),
-      new JsonPayloadConverter()
-    );
-  }
 }

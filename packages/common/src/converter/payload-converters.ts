@@ -1,6 +1,7 @@
 import { PayloadConverterError, ValueError } from '@temporalio/internal-workflow-common';
 import { JsonPayloadConverter } from './json-payload-converter';
 import { PayloadConverter } from './payload-converter';
+import { ProtobufBinaryPayloadConverter, ProtobufJsonPayloadConverter } from './protobuf-payload-converters';
 import { SearchAttributePayloadConverter } from './search-attribute-payload-converter';
 import { encodingKeys, encodingTypes, METADATA_ENCODING_KEY, Payload, str } from './types';
 
@@ -124,15 +125,26 @@ export class BinaryPayloadConverter implements PayloadConverterWithEncoding {
 
 export const searchAttributePayloadConverter = new SearchAttributePayloadConverter();
 
+export interface DefaultPayloadConverterOptions {
+  /**
+   * The `root` provided to {@link ProtobufJsonPayloadConverter} and {@link ProtobufBinaryPayloadConverter}
+   */
+  protobufRoot?: Record<string, unknown>;
+}
+
 export class DefaultPayloadConverter extends CompositePayloadConverter {
-  // Match the order used in other SDKs, but exclude Protobuf converters so that the code, including
-  // `proto3-json-serializer`, doesn't take space in Workflow bundles that don't use Protobufs. To use Protobufs, use
-  // {@link DefaultPayloadConverterWithProtobufs}.
+  // Match the order used in other SDKs.
   //
   // Go SDK:
   // https://github.com/temporalio/sdk-go/blob/5e5645f0c550dcf717c095ae32c76a7087d2e985/converter/default_data_converter.go#L28
-  constructor() {
-    super(new UndefinedPayloadConverter(), new BinaryPayloadConverter(), new JsonPayloadConverter());
+  constructor({ protobufRoot }: DefaultPayloadConverterOptions = {}) {
+    super(
+      new UndefinedPayloadConverter(),
+      new BinaryPayloadConverter(),
+      new ProtobufJsonPayloadConverter(protobufRoot),
+      new ProtobufBinaryPayloadConverter(protobufRoot),
+      new JsonPayloadConverter()
+    );
   }
 }
 

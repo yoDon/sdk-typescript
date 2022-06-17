@@ -3,6 +3,7 @@ import { WorkflowClient } from '@temporalio/client';
 import {
   BinaryPayloadConverter,
   defaultPayloadConverter,
+  DefaultPayloadConverter,
   JsonPayloadConverter,
   PayloadConverterError,
   UndefinedPayloadConverter,
@@ -14,11 +15,7 @@ import {
   METADATA_MESSAGE_TYPE_KEY,
   u8,
 } from '@temporalio/common/lib/converter/types';
-import {
-  DefaultPayloadConverterWithProtobufs,
-  ProtobufBinaryPayloadConverter,
-  ProtobufJsonPayloadConverter,
-} from '@temporalio/common/lib/protobufs';
+import { ProtobufBinaryPayloadConverter, ProtobufJsonPayloadConverter } from '@temporalio/common/lib/protobufs';
 import { DefaultLogger, Runtime, Worker } from '@temporalio/worker';
 import test from 'ava';
 import { v4 as uuid4 } from 'uuid';
@@ -216,9 +213,9 @@ if (RUN_INTEGRATION_TESTS) {
   });
 }
 
-test('DefaultPayloadConverterWithProtobufs converts protobufs', (t) => {
+test('DefaultPayloadConverter converts protobufs', (t) => {
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const defaultPayloadConverterWithProtos = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
+  const defaultPayloadConverterWithProtos = new DefaultPayloadConverter({ protobufRoot: root });
   t.deepEqual(
     defaultPayloadConverterWithProtos.toPayload(instance),
     // It will always use JSON because it appears before binary in the list
@@ -226,8 +223,8 @@ test('DefaultPayloadConverterWithProtobufs converts protobufs', (t) => {
   );
 });
 
-test('DefaultPayloadConverterWithProtobufs converts to payload by trying each converter in order', (t) => {
-  const defaultPayloadConverterWithProtos = new DefaultPayloadConverterWithProtobufs({ protobufRoot: root });
+test('DefaultPayloadConverter converts to payload by trying each converter in order', (t) => {
+  const defaultPayloadConverterWithProtos = new DefaultPayloadConverter({ protobufRoot: root });
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
   t.deepEqual(
     defaultPayloadConverterWithProtos.toPayload(instance),
@@ -263,16 +260,14 @@ test('defaultPayloadConverter converts from payload by payload type', (t) => {
   );
 
   const instance = root.ProtoActivityInput.create({ name: 'Proto', age: 1 });
-  const protoError = {
-    instanceOf: ValueError,
-    message: /Unknown encoding: .*protobuf/,
-  };
-  t.throws(
-    () => defaultPayloadConverter.fromPayload(new ProtobufBinaryPayloadConverter(root).toPayload(instance)!),
-    protoError
-  );
-  t.throws(
-    () => defaultPayloadConverter.fromPayload(new ProtobufJsonPayloadConverter(root).toPayload(instance)!),
-    protoError
-  );
+  t.deepEqual(defaultPayloadConverter.fromPayload(new ProtobufBinaryPayloadConverter().toPayload(instance)!), instance);
+  t.deepEqual(defaultPayloadConverter.fromPayload(new ProtobufJsonPayloadConverter().toPayload(instance)!), instance);
+
+  const payload = new ProtobufJsonPayloadConverter().toPayload(instance);
+  payload!.metadata!.messageType = u8('UnknownProto');
+  t.throws(() => defaultPayloadConverter.fromPayload(payload!), {
+    instanceOf: PayloadConverterError,
+    message:
+      'Got a `UnknownProto` protobuf message but cannot find corresponding message class in ProtobufJS message roots. Make sure that `UnknownProto` is included in the `.proto` files used to generate `json-module.js` and `root.d.ts`. https://docs.temporal.io/typescript/data-converters#protobufs',
+  });
 });

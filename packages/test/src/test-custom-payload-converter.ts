@@ -58,6 +58,27 @@ if (RUN_INTEGRATION_TESTS) {
     await Promise.all([worker.run(), runAndShutdown()]);
   });
 
+  test.only('Client and Worker work with default dataConverter', async (t) => {
+    const taskQueue = 'test-custom-payload-converter';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs'),
+      taskQueue,
+    });
+    const client = new WorkflowClient();
+    const runAndShutdown = async () => {
+      const result = await client.execute(protobufWorkflow, {
+        args: [messageInstance],
+        workflowId: uuid4(),
+        taskQueue,
+      });
+
+      t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
+      worker.shutdown();
+    };
+    await Promise.all([worker.run(), runAndShutdown()]);
+  });
+
   test('fromPayload throws on Client when receiving result from client.execute()', async (t) => {
     const worker = await Worker.create({
       ...defaultOptions,
@@ -83,6 +104,29 @@ if (RUN_INTEGRATION_TESTS) {
 
     worker.shutdown();
     await runPromise;
+  });
+
+  test('defaultPayloadConverter works without protobufjs/light in the bundle', async (t) => {
+    const dataConverter = { payloadConverterPath: require.resolve('./payload-converters/proto-payload-converter') };
+    const taskQueue = 'test-custom-payload-converter';
+    const worker = await Worker.create({
+      ...defaultOptions,
+      workflowsPath: require.resolve('./workflows/protobufs'),
+      taskQueue,
+      dataConverter,
+    });
+    const client = new WorkflowClient({ dataConverter });
+    const runAndShutdown = async () => {
+      const result = await client.execute(protobufWorkflow, {
+        args: [messageInstance],
+        workflowId: uuid4(),
+        taskQueue,
+      });
+
+      t.deepEqual(result, ProtoActivityResult.create({ sentence: `Proto is 1 years old.` }));
+      worker.shutdown();
+    };
+    await Promise.all([worker.run(), runAndShutdown()]);
   });
 }
 
