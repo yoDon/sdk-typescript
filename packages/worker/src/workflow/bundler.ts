@@ -11,6 +11,12 @@ import { DefaultLogger, Logger } from '../logger';
 
 export const allowedBuiltinModules = ['assert'];
 export const disallowedBuiltinModules = builtinModules.filter((module) => !allowedBuiltinModules.includes(module));
+export const disallowedModules = [
+  ...disallowedBuiltinModules,
+  '@temporalio/activity',
+  '@temporalio/client',
+  '@temporalio/worker',
+];
 
 export function moduleMatches(userModule: string, modules: string[]): boolean {
   return modules.some((module) => userModule === module || userModule.startsWith(`${module}/`));
@@ -82,7 +88,8 @@ export class WorkflowCodeBundler {
     // Cast because the type definitions are inaccurate
     const memoryFs = memfs.createFsFromVolume(vol);
     ufs.use(memoryFs as any).use({ ...realFS, readdir: readdir as any });
-    const distDir = '/dist';
+    const distDir = '/Users/me/dist';
+    // const distDir = '/dist';
     const entrypointPath = this.makeEntrypointPath(ufs, this.workflowsPath);
 
     this.genEntrypoint(vol, entrypointPath);
@@ -90,8 +97,8 @@ export class WorkflowCodeBundler {
 
     // Cast because the type definitions are inaccurate
     return {
-      code: memoryFs.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string,
-      sourceMap: memoryFs.readFileSync(path.join(distDir, 'main.source.js'), 'utf8') as string,
+      code: realFS.readFileSync(path.join(distDir, 'main.js'), 'utf8') as string,
+      sourceMap: realFS.readFileSync(path.join(distDir, 'main.source.js'), 'utf8') as string,
     };
   }
 
@@ -162,7 +169,7 @@ export class WorkflowCodeBundler {
         ? data.request.slice('node:'.length)
         : data.request ?? '';
 
-      if (moduleMatches(module, disallowedBuiltinModules) && !moduleMatches(module, this.ignoreModules)) {
+      if (moduleMatches(module, disallowedModules) && !moduleMatches(module, this.ignoreModules)) {
         this.foundProblematicModules.add(module);
       }
 
@@ -176,7 +183,7 @@ export class WorkflowCodeBundler {
         extensions: ['.ts', '.js'],
         alias: {
           __temporal_custom_payload_converter$: this.payloadConverterPath ?? false,
-          ...Object.fromEntries([...this.ignoreModules, ...disallowedBuiltinModules].map((m) => [m, false])),
+          ...Object.fromEntries([...this.ignoreModules, ...disallowedModules].map((m) => [m, false])),
         },
       },
       externals: captureProblematicModules,
@@ -216,13 +223,15 @@ export class WorkflowCodeBundler {
         devtoolModuleFilenameTemplate: '[absolute-resource-path]',
         library: '__TEMPORAL__',
       },
+      ignoreWarnings: [/Failed to parse source map/],
     });
 
     // Cast to any because the type declarations are inaccurate
     compiler.inputFileSystem = inputFilesystem as any;
     // Don't use ufs due to a strange bug on Windows:
     // https://github.com/temporalio/sdk-typescript/pull/554
-    compiler.outputFileSystem = outputFilesystem as any;
+    // compiler.outputFileSystem = outputFilesystem as any;
+    compiler.outputFileSystem = inputFilesystem as any;
 
     try {
       await new Promise<void>((resolve, reject) => {

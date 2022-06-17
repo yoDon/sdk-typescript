@@ -8,7 +8,6 @@ import {
 } from '@temporalio/internal-workflow-common';
 import * as protoJsonSerializer from 'proto3-json-serializer';
 import type { Message, Namespace, Root, Type } from 'protobufjs';
-// import protobufjs from 'protobufjs/light';
 import { PayloadConverterWithEncoding } from './payload-converters';
 import {
   EncodingType,
@@ -19,8 +18,20 @@ import {
   str,
   u8,
 } from './types';
+import type ProtobufjsType from 'protobufjs/light';
+// import test from 'protobufjs/light';
 
-const protobufjs = { roots: {} };
+let protobufjs: typeof ProtobufjsType | undefined;
+
+async function importProtobufjs() {
+  // const protobufjsModuleName = 'protobufjs/light';
+  protobufjs = await import(
+    /* webpackMode: "lazy" */
+    'protobufjs/light'
+  );
+}
+
+void importProtobufjs();
 
 abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding {
   protected readonly root: Root | undefined;
@@ -38,6 +49,26 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
 
       this.root = root;
     }
+  }
+
+  private loadRoot() {
+    console.log('loadRoot. inWorkflowContext', (globalThis as any).__TEMPORAL__ !== undefined);
+    console.log('protobufjs:', protobufjs?.build);
+    // if (protobufjs === undefined) {
+    //   try {
+    //     // don't require like this (since protobufjs would always be added to workflow bundle)
+    //     // const protobufjs = require('protobufjs/light');
+    //     const protobufjsModuleName = 'protobufjs/light';
+    //     // TS transforms `import` statements into `require`s, this is a workaround until
+    //     const req = require;
+    //     protobufjs = requi(protobufjsModuleName); // eslint-disable-line @typescript-eslint/no-var-requires
+    //   } catch (error) {
+    //     console.log('error:', errorMessage(error));
+    //     if (errorMessage(error) !== `Cannot find module 'protobufjs/light'`) {
+    //       throw error;
+    //     }
+    //   }
+    // }
   }
 
   protected validatePayload(content: Payload): { messageType: Type; data: Uint8Array } {
@@ -63,28 +94,29 @@ abstract class ProtobufPayloadConverter implements PayloadConverterWithEncoding 
         throw e;
       }
     } else {
-      const roots = protobufjs.roots && Object.entries(protobufjs.roots);
+      this.loadRoot();
+      const roots = protobufjs?.roots && Object.entries(protobufjs.roots);
       if (!roots || !roots.length) {
-        console.log('AAAAAA', protobufjs.roots);
+        console.log('AAAAAA', protobufjs);
         throw new PayloadConverterError(
           `Got a \`${messageTypeName}\` protobuf message but cannot find any ProtobufJS message roots. Make sure to follow the protobuf docs and import \`root.js\` in your Workflow and Activity code. https://docs.temporal.io/typescript/data-converters#protobufs`
         );
       }
 
-      // for (const [_name, root] of roots) {
-      //   try {
-      //     messageType = root.lookupType(messageTypeName);
-      //   } catch (err) {
-      //     const message = errorMessage(err);
-      //     if (!message || !/no such type/.test(message)) {
-      //       throw err;
-      //     }
-      //   }
+      for (const [_name, root] of roots) {
+        try {
+          messageType = root.lookupType(messageTypeName);
+        } catch (err) {
+          const message = errorMessage(err);
+          if (!message || !/no such type/.test(message)) {
+            throw err;
+          }
+        }
 
-      //   if (messageType) {
-      //     break;
-      //   }
-      // }
+        if (messageType) {
+          break;
+        }
+      }
       if (!messageType) {
         throw new PayloadConverterError(
           `Got a \`${messageTypeName}\` protobuf message but cannot find corresponding message class in ProtobufJS message roots. Make sure that \`${messageTypeName}\` is included in the \`.proto\` files used to generate \`json-module.js\` and \`root.d.ts\`. https://docs.temporal.io/typescript/data-converters#protobufs`
