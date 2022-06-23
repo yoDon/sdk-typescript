@@ -14,7 +14,8 @@
   "dependencies": {
     "@temporalio/internal-workflow-common": "file:../internal-workflow-common",
     "@temporalio/proto": "file:../proto",
-    "proto3-json-serializer": "^0.1.6"
+    "proto3-json-serializer": "^0.1.6",
+    "protobufjs": "^6.11.3"
   },
   "bugs": {
     "url": "https://github.com/temporalio/sdk-typescript/issues"
@@ -22,8 +23,5 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/common",
   "publishConfig": {
     "access": "public"
-  },
-  "devDependencies": {
-    "protobufjs": "^6.11.2"
   }
 }

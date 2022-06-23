@@ -14,9 +14,6 @@
     "init",
     "workflow"
   ],
-  "files": [
-    "lib"
-  ],
   "author": "Roey Berman <roey@temporal.io>",
   "license": "MIT",
   "dependencies": {
