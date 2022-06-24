@@ -44,5 +44,9 @@
   },
   "devDependencies": {
     "@types/semver": "^7.3.10"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }

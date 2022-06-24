@@ -29,5 +29,9 @@
   "homepage": "https://github.com/temporalio/sdk-typescript/tree/main/packages/interceptors-opentelemetry",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "src",
+    "lib"
+  ]
 }
