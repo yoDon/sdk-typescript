@@ -7,10 +7,10 @@ const { statSync, mkdirSync, readFileSync, writeFileSync } = require('fs');
 const pbjs = require('protobufjs/cli/pbjs');
 const pbts = require('protobufjs/cli/pbts');
 
-const outputDir = resolve(__dirname, '..', 'protos');
+const outputDir = resolve(__dirname, '../protos');
 const jsOutputFile = resolve(outputDir, 'json-module.js');
 const tempFile = resolve(outputDir, 'temp.js');
-const protoBaseDir = resolve(__dirname, '..', '..', 'core-bridge', 'sdk-core', 'protos');
+const protoBaseDir = resolve(__dirname, '../../core-bridge/sdk-core/protos');
 
 const coreProtoPath = resolve(protoBaseDir, 'local/temporal/sdk/core/core_interface.proto');
 const workflowServiceProtoPath = resolve(protoBaseDir, 'api_upstream/temporal/api/workflowservice/v1/service.proto');
@@ -73,7 +73,7 @@ async function main() {
   const genMTime = mtime(jsOutputFile);
 
   if (protosMTime < genMTime) {
-    console.log('Assuming protos are up to date', { genMTime, protosMTime });
+    console.log('Assuming protos are up to date');
     return;
   }
 
